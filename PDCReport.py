@@ -44,6 +44,41 @@ def process_file(file_path, date_str, results_list):
     # Add the result to the list
     results_list.append(new_file_path.replace(r"N:\Production\Production reports\\", ""))
 
+def process_shipping_file(file_path, date_str, results_list):
+    # Read the content of the file with the correct encoding
+    with open(file_path, 'r', encoding='utf-8') as file:
+        lines = file.read().splitlines()
+
+    # Initialize a variable to store the total weight
+    total_weight = 0
+
+    # Precompile the regex for efficiency
+    regex = re.compile(r'Total shipped to Jobsite:\s+\d+,\d+\s+(\d{1,3}(?:,\d{3})*)#')
+
+    # Process lines to find the total shipped weight
+    for line in lines:
+        match = regex.search(line)
+        if match:
+            total_weight = int(match.group(1).replace(',', ''))
+            break
+
+    # Calculate the total shipped weight in tons
+    total_weight_tons = total_weight / 2000
+
+    # Round the tonnage value
+    tonnage = round(total_weight_tons, 2)
+
+    # Construct the new file name
+    new_file_name = f"{date_str} {tonnage} Tons.txt"
+    new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
+
+    # Rename the file
+    os.rename(file_path, new_file_path)
+    print(f"File renamed to: {new_file_name}")
+
+    # Add the result to the list
+    results_list.append(new_file_path.replace(r"N:\Production\Production reports\\", ""))
+
 def find_and_process_files(base_path, log_file_path):
     # Get the current date in YYYY-MM-DD format
     current_date = datetime.now().strftime('%Y-%m-%d')
@@ -57,13 +92,17 @@ def find_and_process_files(base_path, log_file_path):
     # Walk through the directory and its subdirectories
     for dirpath, _, filenames in os.walk(base_path):
         for filename in filenames:
-            # Delete files that are not "Station Summary-currentday.txt" or "Station Summary-prevday.txt"
-            if filename not in ["Station Summary-currentday.txt", "Station Summary-prevday.txt"]:
+            # Delete files that are not "Station Summary-currentday.txt", "Station Summary-prevday.txt", "ShippingList_by_Job-currentday.txt" or "ShippingList_by_Job-prevday.txt"
+            if filename not in ["Station Summary-currentday.txt", "Station Summary-prevday.txt", "ShippingList_by_Job-currentday.txt", "ShippingList_by_Job-prevday.txt"]:
                 os.remove(os.path.join(dirpath, filename))
             elif filename == "Station Summary-currentday.txt":
                 process_file(os.path.join(dirpath, filename), current_date, results_list)
             elif filename == "Station Summary-prevday.txt":
                 process_file(os.path.join(dirpath, filename), yesterday_date, results_list)
+            elif filename == "ShippingList_by_Job-currentday.txt":
+                process_shipping_file(os.path.join(dirpath, filename), current_date, results_list)
+            elif filename == "ShippingList_by_Job-prevday.txt":
+                process_shipping_file(os.path.join(dirpath, filename), yesterday_date, results_list)
 
     # Clear the log file and write all the results
     with open(log_file_path, 'a', encoding='utf-8') as log_file:

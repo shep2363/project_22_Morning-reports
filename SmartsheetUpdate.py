@@ -16,7 +16,8 @@ sheet_mapping = {
     "Beamline": "8633118017671044",
     "Daily": "6630177199050628",
     "Paint": "6705691314048900",
-    "PlateTable": "2861850202951556"
+    "PlateTable": "2861850202951556",
+    "Shipping": "589005049515908"
 }
 
 # Function to read and parse the Results.txt file
