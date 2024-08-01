@@ -11,7 +11,7 @@ def run_script(script_path):
         return e.stderr
 
 def start_scripts():
-    log_text.set("Starting PDCReportV2.py...\n")
+    log_text.set("Starting PDCReport.py...\n")
     update_ui()
     pdc_report_result = run_script("PDCReport.py")
     
@@ -22,7 +22,7 @@ def start_scripts():
         messagebox.showerror("Error", "An error occurred while running PDCReportV2.py")
         return
     
-    log_text.set(log_text.get() + "PDCReportV2.py completed. Starting SmartsheetUpdate.py...\n")
+    log_text.set(log_text.get() + "PDCReport.py completed. Starting SmartsheetUpdate.py...\n")
     update_ui()
     smartsheet_update_result = run_script("SmartsheetUpdate.py")
     
