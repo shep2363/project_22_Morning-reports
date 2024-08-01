@@ -13,7 +13,7 @@ def run_script(script_path):
 def start_scripts():
     log_text.set("Starting PDCReportV2.py...\n")
     update_ui()
-    pdc_report_result = run_script("PDCReportV2.py")
+    pdc_report_result = run_script("PDCReport.py")
     
     log_text.set(log_text.get() + pdc_report_result + "\n")
     update_ui()
