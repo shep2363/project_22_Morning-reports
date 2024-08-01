@@ -52,15 +52,19 @@ def process_shipping_file(file_path, date_str, results_list):
     # Initialize a variable to store the total weight
     total_weight = 0
 
-    # Precompile the regex for efficiency
-    regex = re.compile(r'Total shipped to Jobsite:\s+\d+,\d+\s+(\d{1,3}(?:,\d{3})*)#')
-
     # Process lines to find the total shipped weight
     for line in lines:
-        match = regex.search(line)
-        if match:
-            total_weight = int(match.group(1).replace(',', ''))
-            break
+        if "Total shipped to Jobsite:" in line:
+            # Find the position of the hashtag
+            hashtag_pos = line.rfind('#')
+            if hashtag_pos != -1:
+                # Trace backwards to find the last space before the weight value
+                last_space_pos = line.rfind(' ', 0, hashtag_pos)
+                if last_space_pos != -1:
+                    # Extract the weight value
+                    weight_str = line[last_space_pos + 1:hashtag_pos].replace(',', '')
+                    total_weight = int(weight_str)
+                    break
 
     # Calculate the total shipped weight in tons
     total_weight_tons = total_weight / 2000
@@ -69,7 +73,7 @@ def process_shipping_file(file_path, date_str, results_list):
     tonnage = round(total_weight_tons, 2)
 
     # Construct the new file name
-    new_file_name = f"{date_str} {tonnage} Tons.txt"
+    new_file_name = f"Shipping_{date_str} {tonnage} Tons.txt"
     new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
 
     # Rename the file
