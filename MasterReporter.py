@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import subprocess
 import threading
+import os
 
 def run_script(script_path):
     try:
@@ -63,4 +64,6 @@ log_label = tk.Label(app, textvariable=log_text, justify=tk.LEFT, anchor="w", bg
 log_label.pack(pady=10)
 
 app.geometry("600x400")
+app.iconbitmap('icon.ico')  # Use your .ico file
+
 app.mainloop()
