@@ -8,7 +8,7 @@ def process_file(file_path, date_str, results_list, is_shipping=False):
     
     # Precompile the regex for efficiency
     completed_regex = re.compile(r'(\d{1,3}(?:,\d{3})*)#')
-    shipping_regex = re.compile(r'Total shipped to Jobsite:\s+\d+,\d+\s+(\d{1,3}(?:,\d{3})*)#')
+    shipping_regex = re.compile(r'Total shipped to Jobsite:\s+\d{1,3}(?:,\d{3})*\s+(\d{1,3}(?:,\d{3})*)#')
 
     with open(file_path, 'r', encoding='utf-8') as file:
         lines = file.read().splitlines()
