@@ -6,7 +6,7 @@ import threading
 import logging
 from datetime import datetime
 from queue import Queue
-from tkinter.ttk import Progressbar
+from tkinter.ttk import Progressbar, Style
 
 # Configuration
 CONFIG = {
@@ -29,30 +29,41 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 # Initialize the Smartsheet client
 smartsheet_client = smartsheet.Smartsheet(CONFIG['access_token'])
 
-def start_scripts(log_queue):
+def start_scripts(log_queue, progress_queue):
     """Start the main processing and updating script."""
-    log_queue.put("Starting PDCReport process...\n")
-    progress.start()
-    find_and_process_files(CONFIG['base_path'], CONFIG['results_file_path'], log_queue)
-    log_queue.put("PDCReport process completed. Starting Smartsheet update...\n")
+    log_queue.put("Starting PDCReport process...")
+    find_and_process_files(CONFIG['base_path'], CONFIG['results_file_path'], log_queue, progress_queue)
+    log_queue.put("PDCReport process completed. Starting Smartsheet update...")
     results = read_results(CONFIG['results_file_path'])
-    update_smartsheets(results, CONFIG['sheet_mapping'], log_queue)
-    log_queue.put("Smartsheet update completed.\nCOMPLETE")
-    progress.stop()
+    update_smartsheets(results, CONFIG['sheet_mapping'], log_queue, progress_queue)
+    log_queue.put("Smartsheet update completed. COMPLETE")
+    progress_queue.put(100)  # Ensure progress bar reaches 100% at the end
     start_button.config(state=tk.NORMAL)
 
 def start_button_handler():
     """Handle the start button click event."""
     start_button.config(state=tk.DISABLED)
-    log_text.set("")  # Clear previous log messages
-    threading.Thread(target=start_scripts, args=(log_queue,)).start()
+    current_log.set("")  # Clear previous log messages
+    progress.pack(pady=10)  # Show progress bar
+    threading.Thread(target=start_scripts, args=(log_queue, progress_queue)).start()
     app.after(100, process_log_queue)
+    app.after(100, update_progress)
 
 def process_log_queue():
     """Process the log queue and update the GUI."""
-    while not log_queue.empty():
-        log_text.set(log_text.get() + log_queue.get())
+    if not log_queue.empty():
+        current_log.set(log_queue.get())
     app.after(100, process_log_queue)
+
+def update_progress():
+    """Update the progress bar."""
+    if not progress_queue.empty():
+        progress_value = progress_queue.get()
+        progress['value'] = progress_value
+        progress_label.set(f'{progress_value}%')
+        if progress_value == 100:
+            progress.style.configure("green.Horizontal.TProgressbar", background="#006400")
+    app.after(100, update_progress)
 
 def generate_unique_filename(directory, filename):
     """Generate a unique filename in the specified directory."""
@@ -73,7 +84,7 @@ def extract_date_from_content(content, is_shipping=False):
     else:
         raise ValueError("Date not found in file content")
 
-def process_file(file_path, results_list):
+def process_file(file_path, results_list, progress_queue, total_files, current_file_index):
     """Process a general file and update the results list."""
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -100,8 +111,11 @@ def process_file(file_path, results_list):
         results_list.append(new_file_path.replace(r"T:\\Production reports\\", ""))
     except Exception as e:
         logging.error(f"Error processing file {file_path}: {e}")
+    finally:
+        progress_value = int(((current_file_index + 1) / total_files) * 100)
+        progress_queue.put(progress_value)
 
-def process_shipping_file(file_path, results_list):
+def process_shipping_file(file_path, results_list, progress_queue, total_files, current_file_index):
     """Process a shipping file and update the results list."""
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -129,13 +143,20 @@ def process_shipping_file(file_path, results_list):
         results_list.append(new_file_path.replace(r"T:\\Production reports\\", ""))
     except Exception as e:
         logging.error(f"Error processing shipping file {file_path}: {e}")
+    finally:
+        progress_value = int(((current_file_index + 1) / total_files) * 100)
+        progress_queue.put(progress_value)
 
-def find_and_process_files(base_path, log_file_path, log_queue):
+def find_and_process_files(base_path, log_file_path, log_queue, progress_queue):
     """Find and process files in the specified base path."""
     results_list = []
 
     # Clear the results file at the start
     open(log_file_path, 'w').close()
+
+    # Set total files to the average number (12) for smoother progress bar
+    total_files = 12
+    current_file_index = 0
 
     for dirpath, _, filenames in os.walk(base_path):
         for filename in filenames:
@@ -143,9 +164,10 @@ def find_and_process_files(base_path, log_file_path, log_queue):
             if filename == "Results.txt":
                 continue
             if filename in ["Station Summary-currentday.txt", "Station Summary-prevday.txt"]:
-                process_file(file_path, results_list)
+                process_file(file_path, results_list, progress_queue, total_files, current_file_index)
             elif filename in ["ShippingList_by_Job-currentday.txt", "ShippingList_by_Job-prevday.txt"]:
-                process_shipping_file(file_path, results_list)
+                process_shipping_file(file_path, results_list, progress_queue, total_files, current_file_index)
+            current_file_index += 1
 
     # Log results
     with open(log_file_path, 'a', encoding='utf-8') as log_file:
@@ -192,24 +214,27 @@ def get_column_id(sheet, column_title):
             return column.id
     raise ValueError(f"Column '{column_title}' not found in the sheet.")
 
-def update_smartsheets(results, sheet_mapping, log_queue):
+def update_smartsheets(results, sheet_mapping, log_queue, progress_queue):
     """Update the Smartsheet with the results."""
+    total_entries = len(results)
+    current_entry_index = 0
+
     for sheet_name, date, total_weight in results:
         try:
-            log_queue.put(f"Processing {sheet_name} for date {date} with weight {total_weight}\n")
+            log_queue.put(f"Processing {sheet_name} for date {date} with weight {total_weight}")
             sheet_id = sheet_mapping.get(sheet_name)
             if not sheet_id:
-                log_queue.put(f"Sheet ID for '{sheet_name}' not found. Skipping this entry.\n")
+                log_queue.put(f"Sheet ID for '{sheet_name}' not found. Skipping this entry.")
                 continue
 
             sheet = smartsheet_client.Sheets.get_sheet(sheet_id)
-            log_queue.put(f"Retrieved sheet: {sheet_name} (ID: {sheet_id})\n")
+            log_queue.put(f"Retrieved sheet: {sheet_name} (ID: {sheet_id})")
 
             try:
                 date_column_id = get_column_id(sheet, 'Date')
                 total_weight_column_id = get_column_id(sheet, 'Total Weight')
             except ValueError as e:
-                log_queue.put(f"Error: {e}\n")
+                log_queue.put(f"Error: {e}")
                 continue
 
             rows_to_update = []
@@ -217,7 +242,7 @@ def update_smartsheets(results, sheet_mapping, log_queue):
             for row in sheet.rows:
                 for cell in row.cells:
                     if cell.column_id == date_column_id and cell.value == date:
-                        log_queue.put(f"Found matching date: {date} in row ID: {row.id}\n")
+                        log_queue.put(f"Found matching date: {date} in row ID: {row.id}")
                         new_cell = smartsheet.models.Cell({
                             'column_id': total_weight_column_id,
                             'value': total_weight
@@ -231,14 +256,18 @@ def update_smartsheets(results, sheet_mapping, log_queue):
 
             if rows_to_update:
                 smartsheet_client.Sheets.update_rows(sheet_id, rows_to_update)
-                log_queue.put(f"Updated rows in sheet: {sheet_name}\n")
+                log_queue.put(f"Updated rows in sheet: {sheet_name}")
             else:
-                log_queue.put(f"No rows found with the date {date} in sheet {sheet_name}\n")
+                log_queue.put(f"No rows found with the date {date} in sheet {sheet_name}")
 
         except Exception as e:
-            log_queue.put(f"Error updating sheet {sheet_name}: {e}\n")
+            log_queue.put(f"Error updating sheet {sheet_name}: {e}")
 
-    log_queue.put("Smartsheets have been updated successfully.\n")
+        current_entry_index += 1
+        progress_value = int(((current_entry_index + 1) / (total_entries + 12)) * 100)
+        progress_queue.put(progress_value)
+
+    log_queue.put("Smartsheets have been updated successfully.")
 
 # GUI setup
 app = tk.Tk()
@@ -249,28 +278,34 @@ bg_color = "#2e2e2e"
 fg_color = "#ffffff"
 btn_color = "#444444"
 btn_fg_color = "#ffffff"
-highlight_color = "#666666"
+highlight_color = "#00ff00"
+completed_color = "#006400"
 
 app.configure(bg=bg_color)
 
 start_button = tk.Button(app, text="Start", command=start_button_handler, bg=btn_color, fg=btn_fg_color, activebackground=highlight_color)
 start_button.pack(pady=10)
 
-progress = Progressbar(app, orient=tk.HORIZONTAL, length=300, mode='indeterminate', style="TProgressbar")
-progress.pack(pady=10)
-progress.pack_forget()  # Hide progress bar initially
+style = Style()
+style.theme_use('clam')
+style.configure("green.Horizontal.TProgressbar", troughcolor=bg_color, background=highlight_color, thickness=10)
 
-log_text = tk.StringVar()
-log_label = tk.Label(app, textvariable=log_text, justify=tk.LEFT, anchor="w", bg=bg_color, fg=fg_color)
+progress = Progressbar(app, orient=tk.HORIZONTAL, length=300, mode='determinate', style="green.Horizontal.TProgressbar")
+progress_label = tk.StringVar()
+progress_label.set("0%")
+progress_label_widget = tk.Label(app, textvariable=progress_label, bg=bg_color, fg=highlight_color)
+
+progress.pack(pady=10)
+progress_label_widget.pack()
+
+current_log = tk.StringVar()
+log_label = tk.Label(app, textvariable=current_log, justify=tk.LEFT, anchor="w", bg=bg_color, fg=fg_color)
 log_label.pack(pady=10)
 
-app.geometry("500x300")
+app.geometry("500x200")
 icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.ico')
 app.iconbitmap(icon_path)
 
-style = tk.ttk.Style()
-style.theme_use('clam')
-style.configure("TProgressbar", troughcolor=bg_color, background=highlight_color, thickness=20)
-
 log_queue = Queue()
+progress_queue = Queue()
 app.mainloop()
