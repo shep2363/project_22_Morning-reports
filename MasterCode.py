@@ -294,7 +294,6 @@ progress = Progressbar(app, orient=tk.HORIZONTAL, length=300, mode='determinate'
 progress_label = tk.StringVar()
 progress_label.set("0%")  # Initialize the progress label to 0%
 progress_label_widget = tk.Label(app, textvariable=progress_label, bg=bg_color, fg=highlight_color)  # Create the progress label widget
-
 progress.pack(pady=10)  # Add the progress bar to the app
 progress_label_widget.pack()  # Add the progress label widget to the app
 
@@ -303,9 +302,7 @@ log_label = tk.Label(app, textvariable=current_log, justify=tk.LEFT, anchor="w",
 log_label.pack(pady=10)  # Add the log label to the app
 
 app.geometry("400x150")  # Set the geometry of the app
-icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon.ico')  # Get the path to the app icon
-app.iconbitmap(icon_path)  # Set the app icon
-
 log_queue = Queue()  # Create the log queue
 progress_queue = Queue()  # Create the progress queue
+
 app.mainloop()  # Start the main loop of the app
