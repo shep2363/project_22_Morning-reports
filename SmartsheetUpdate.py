@@ -27,11 +27,11 @@ def read_results(file_path):
     results = []
     for line in lines:
         # Extract the sheet name, date, and total weight using regex
-        match = re.search(r'(\w+) throughput\\(\w+)_(\d{4}-\d{2}-\d{2}) (\d+\.\d+) Tons.txt', line)
+        match = re.search(r'(\w+) throughput\\(\d{4}-\d{2}-\d{2}) (\d+\.\d+) Tons\.txt', line)
         if match:
             sheet_name = match.group(1)
-            date = match.group(3)
-            total_weight = float(match.group(4))
+            date = match.group(2)
+            total_weight = float(match.group(3))
             results.append((sheet_name, date, total_weight))
         else:
             print(f"Line '{line}' did not match the expected format.")
